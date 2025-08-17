@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-console.log(require('./package.json').version)
+console.log(require(`${__dirname}/package.json`).version)
 
 var fs = require('fs')
 var fs_p = require('fs/promises')
@@ -110,11 +110,11 @@ async function ensure_antimatter(key) {
 }
 
 function respond_with_client (req, res) {
-    var client_html = fs.readFileSync('./client.html')
+    var client_html = fs.readFileSync(`${__dirname}/client.html`)
     client_html = '' + client_html
     client_html = client_html.replace(/__ANTIMATTER_VERSION__/,
-        require('./package.json').dependencies['@braidjs/antimatter'])
-    client_html = client_html.replace(/__VERSION__/, require('./package.json').version)
+        require(`${__dirname}/package.json`).dependencies['@braidjs/antimatter'])
+    client_html = client_html.replace(/__VERSION__/, require(`${__dirname}/package.json`).version)
     client_html = client_html.replace(/__WIKI_HOST__/, ws_url)
     var etag = require('crypto').createHash('md5').update(client_html).digest('hex')
     if (req.headers['if-none-match'] === etag) {
