@@ -5,7 +5,7 @@ console.log(require('./package.json').version)
 var fs = require('fs')
 var fs_p = require('fs/promises')
 
-var { create_antimatter_crdt } = require('@braidjs/antimatter')
+var { create_antimatter_crdt } = require('@braid.org/antimatter')
 
 var port = process.argv[2] || 1001
 var ws_url = process.argv[3] || `ws://localhost:${port}`
