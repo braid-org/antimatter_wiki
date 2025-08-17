@@ -1,6 +1,6 @@
 {
   "name": "antimatter_wiki",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "collaborative wiki using antimatter sync algorithm",
   "main": "server.js",
   "bin": {

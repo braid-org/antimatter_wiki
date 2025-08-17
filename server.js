@@ -113,7 +113,7 @@ function respond_with_client (req, res) {
     var client_html = fs.readFileSync(`${__dirname}/client.html`)
     client_html = '' + client_html
     client_html = client_html.replace(/__ANTIMATTER_VERSION__/,
-        require(`${__dirname}/package.json`).dependencies['@braidjs/antimatter'])
+        require(`${__dirname}/package.json`).dependencies['@braid.org/antimatter'])
     client_html = client_html.replace(/__VERSION__/, require(`${__dirname}/package.json`).version)
     client_html = client_html.replace(/__WIKI_HOST__/, ws_url)
     var etag = require('crypto').createHash('md5').update(client_html).digest('hex')
