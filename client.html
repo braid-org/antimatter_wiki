@@ -1,0 +1,450 @@
+<body>
+    <script src="https://unpkg.com/@braid.org/antimatter@__ANTIMATTER_VERSION__"></script>
+    <script src="https://invisible-college.github.io/universal-sync/diffsync.js"></script>
+    <!--<script src="https://braid.news/diffsync.js"></script>-->
+    <script src="https://invisible.college/js/marked.min.js"></script>
+    <link rel="stylesheet" href="https://invisible.college/css/github-markdown.css">
+    <style>note {position: absolute; left: 900; width: 400; background-color: #F8F3B7; padding: 10; box-shadow: -2px 2px 2px #ccc; border-radius: 2; text-align: left; font-size: 13; margin-top: -7}</style>
+</body>
+
+<!--<script src="https://braid.org/point.js"></script>-->
+
+<script>
+
+console.log("__VERSION__")
+
+var wiki_host = "__WIKI_HOST__"
+
+document.title = window.location.pathname.substr(1)
+document.body.style.border = '3px solid transparent'
+var real_errorrr_happened = false
+window.onerror = function (e) {
+    real_errorrr_happened = e
+    document.body.style.border = '4px red solid'
+    t.disabled = true
+    t.style.backgroundColor = '#fee'
+}
+
+var output = document.createElement('div')
+output.className = 'pad'
+output.style.maxWidth = '900px'
+document.body.append(output)
+
+var bottom_pad = document.createElement('div')
+bottom_pad.style.height = '50vh'
+bottom_pad.style.display = 'none'
+document.body.append(bottom_pad)
+
+var t_d = make_html(`<div style="position:fixed;bottom:0px;right:0px;display:none;background:white"></div>`)
+document.body.append(t_d)
+
+var t = make_html('<textarea disabled=true style="position:absolute;left:0px;top:0px;width:100%;height:100%;background:rgba(0,0,0,0);font-size:15px;font-family:helvetica, monaco, lucida grande, avenir"></textarea>')
+t_d.append(t)
+
+var hud = make_html(`<pre style="position:absolute;right:20px;top:5px;background:rgba(255,255,255,.9);color:black;margin:0px;padding:4px;font-size: 10;">hi!</pre>`)
+t_d.append(hud)
+
+var edit = document.createElement('div')
+edit.style.position = 'fixed'
+edit.style.bottom = '0px'
+edit.style.right = '0px'
+edit.style.padding = '30px'
+edit.style.cursor = 'pointer'
+edit.style.textDecoration = 'underline'
+edit.style.backgroundColor = 'rgba(255, 255, 255, .5)'
+edit.onclick = toggle_editor
+edit.innerText = 'edit'
+document.body.append(edit)
+
+var differ = document.createElement('div')
+differ.style.position = 'fixed'
+differ.style.bottom = '0px'
+differ.style.right = '30px'
+differ.style.fontSize = '10px'
+differ.style.cursor = 'pointer'
+differ.style.textDecoration = 'underline'
+differ.style.backgroundColor = 'rgba(100, 100, 100, .2)'
+differ.onclick = (e) => {showing_diff=!showing_diff; update_markdown()}
+differ.innerText = 'show diffs'
+//document.body.append(differ)
+
+let a
+var timer
+var is_safari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
+var render_delay = is_safari ? 600 : 30    // Safari markdown parsing is slow
+function update_markdown_later() {
+    if (timer) clearTimeout(timer)
+    timer = setTimeout(update_markdown, render_delay)
+}
+function update_markdown() {
+    timer = null
+    var source = showing_diff ? html_diffed(last_version||'', t.value) : t.value
+    output.innerHTML = marked.parse(source, {sanitize: !is_safe})
+
+    document.body.className = 'nopad'
+
+    update_hud()
+}
+update_markdown()
+
+function update_hud() {
+    hud.textContent = 'loading..'
+    if (a) {
+        hud.textContent = `versions: ${Object.keys(a.T).length}
+            fissures: ${Object.keys(a.fissures).length}`.replace(/^\s*/mg, '')
+    }
+}
+
+var is_safe = true
+var channel = window.location.pathname.slice(1)
+
+console.log('channel: ' + channel)
+
+async function create_antimatter_client(url, cb, on_receive) {
+    let ws
+    let set_ws = x => ws = x
+    let get_ws = () => ws
+    let send = x => {
+
+        console.log(`ready?: ${ws?.readyState == WebSocket.OPEN}, to send: ${JSON.stringify(x)}`)
+
+        if (ws?.readyState == WebSocket.OPEN && ws.my_id == x.conn) ws.send(JSON.stringify(x))
+    }
+
+    let a = create_antimatter_crdt(
+        send,
+        () => Date.now(),
+        setTimeout,
+        clearTimeout,
+        {fissure_lifetime: 1000 * 60 * 60})
+
+    let done
+    let p = new Promise(d => done = d)
+
+    let interval_ms = 1000 * 60
+
+    connect()
+    function connect() {
+        console.log(`try'na connect to: ${url}`)
+        let ws = set_ws(new WebSocket(url))
+        ws.my_id = Math.random().toString(36).slice(2)
+
+        let openned = false
+        let last_ping = Date.now()
+
+        ws.onopen = () => {
+            console.log(`OPEN`)
+            openned = true
+            t.disabled = false
+            localStorage[`antimatter_conn_6c5kho7dle_${ws.my_id}`] = JSON.stringify([Date.now(), Date.now()])
+
+            a.subscribe(ws.my_id)
+
+            last_ping = Date.now()
+            check_ping()
+            function check_ping() {
+                if (ws.readyState > 1) return
+                if (Date.now() - last_ping > 1000 * 30) {
+                    console.log('WS - NO PING, CLOSING!')
+                    return ws.close()
+                }
+                setTimeout(check_ping, 1000)
+            }
+        }
+        ws.onmessage = x => {
+            if (x.data == 'ping') {
+                last_ping = Date.now()
+                ws.send('pong')
+                return
+            }
+
+            console.log(`RECV: ${x.data}`)
+            let m = JSON.parse(x.data)
+
+            let r
+            try {
+                if (!done) on_receive?.(m)
+                if (m.type === 'error') throw new Error(m.message)
+                r = a.receive(m)
+            } catch (e) {
+                a.disconnect(ws.my_id)
+                ws.onclose = () => {}
+                ws.close()
+                alert('copy your work, and reload -- lost sync with server')
+                throw e
+            }
+
+            if (m.type == 'welcome') resolve_old_fissures()
+
+            update_hud()
+
+            if (done) done()
+            else if (r?.length) cb(r)
+        }
+
+        let interval = setInterval(() => {
+            if (ws.readyState > 1) return clearInterval(interval)
+            if (!openned) return
+            console.log('INTERVAL')
+            localStorage[`antimatter_conn_6c5kho7dle_${ws.my_id}`] = JSON.stringify([JSON.parse(localStorage[`antimatter_conn_6c5kho7dle_${ws.my_id}`] ?? 'null')?.[1] ?? Date.now(), Date.now()])
+        }, interval_ms)
+
+        ws.onclose = () => {
+            console.log(`CLOSE`)
+            if (openned) {
+                localStorage[`antimatter_conn_6c5kho7dle_${ws.my_id}`] = `[0,0]`
+                a.disconnect(ws.my_id)
+            }
+            setTimeout(() => {
+                if (ws == get_ws()) connect()
+            }, 3000)
+        }
+    }
+
+    window.addEventListener('unload', e => {
+        localStorage[`antimatter_conn_6c5kho7dle_${ws.my_id}`] = `[0,0]`
+        a.unsubscribe(ws.my_id)
+    })
+
+    await p
+    done = null
+    return a
+
+    function resolve_old_fissures() {
+        // are we too old?
+        if (JSON.parse(localStorage[`antimatter_conn_6c5kho7dle_${ws.my_id}`])[0] < Date.now() - interval_ms*2.1) return
+
+        // since we're not too old, we can judge other connections for being too old..
+        let old_conns = {}
+        for (let i = 0; i < localStorage.length; i++) {
+            let k = localStorage.key(i)
+            let m = k.match(/^antimatter_conn_6c5kho7dle_(.*)$/)
+            if (m && JSON.parse(localStorage[k])[1] < Date.now() - interval_ms*5) old_conns[m[1]] = true
+        }
+
+        Object.entries(a.fissures).forEach(([fk, f]) => {
+            var other_key = f.b + ':' + f.a + ':' + f.conn
+            var other = a.fissures[other_key]
+
+            if (!other && old_conns[f.conn]) {
+                // create a little fake connection,
+                a.conns[f.conn] = { peer: f.b }
+                // so we can disconnect from it
+                a.disconnect(f.conn)
+
+                console.log(`OLD CONN REMOVAL: ${f.conn}`)
+            }
+        })
+
+        for (let conn of Object.keys(old_conns)) localStorage.removeItem(`antimatter_conn_6c5kho7dle_${conn}`)
+    }
+}
+
+;(async () => {
+    a = await create_antimatter_client(`${wiki_host}/${encodeURIComponent(channel)}`, patches => {
+
+        console.log('PATCHES ' + JSON.stringify(patches, null, '    '))
+
+        for (let patch of patches) {
+
+            console.log(`patch = ${JSON.stringify(patch, null, '    ')}`)
+
+            let [range_start, range_end] = patch.range.match(/\d+/g)?.map(x => 1*x) ?? [0, 0]
+            let len = patch.content.length
+
+            let sel = [t.selectionStart, t.selectionEnd]
+
+            t.value = t.value.slice(0, range_start) + patch.content + t.value.slice(range_end)
+
+            if (range_end - range_start > 0) {
+                if (range_start < sel[0]) sel[0] -= Math.min(sel[0], range_end) - range_start
+                if (range_start < sel[1]) sel[1] -= Math.min(sel[1], range_end) - range_start
+            }
+            if (range_start <= sel[0]) {
+                sel[0] += len
+                sel[1] += len
+            } else if (range_start < sel[1]) sel[1] += len
+
+            t.selectionStart = sel[0]
+            t.selectionEnd = sel[1]
+        }
+
+        update_markdown_later()
+
+
+    }, msg => {
+        let cv = Object.keys(a.current_version)
+        if (msg.type == 'ack' && cv.length == 1 && msg.version == cv[0])
+            t.style['caret-color'] = 'black'
+    })
+
+    console.log(`loaded: ${a.read()}`)
+
+    t.value = a.read()
+    update_markdown_later()
+
+    a.my_on_change = () => {
+        let slices = get_diff_patch(a.read(), t.value)
+        a.update(...slices.map(s => ({range: `[${s[0]}:${s[0] + s[1]}]`, content: s[2]})))
+
+        t.style['caret-color'] = 'rgb(255,0,0)'
+
+        console.log(`diff = ${JSON.stringify(slices)}`)
+
+        update_markdown_later()
+    }
+
+    t.oninput = a.my_on_change
+})()
+
+var vert = true, editing = false
+function render() {
+    t_d.style.display = editing ? null : 'none'
+    bottom_pad.style.display = (editing && vert) ? null : 'none'
+
+    if (vert) {
+        t_d.style.width = '100%'
+        t_d.style.height = '50vh'
+        output.style.width = null
+    } else {
+        t_d.style.width = '45vw'
+        t_d.style.height = '100%'
+        output.style.width = editing ? '55vw' : null
+    }
+}
+var first_time = true
+function toggle_editor () {
+    editing = !editing
+    render()
+    if (editing) t.focus()
+    if (editing && first_time) {
+        first_time = false
+        t.setSelectionRange(0,0)
+        t.scrollTop = 0
+    }
+    update_markdown()
+}
+
+document.body.onkeydown = function (e) {
+    var mods = 0
+    for (k in {ctrlKey:1, shiftKey:1, altKey:1, metaKey:1})
+        if (e[k]) mods += 1
+
+    if (e.keyCode == 27
+        //|| (mods >= 2 && e.keyCode == 32)
+        ) {
+        e.stopPropagation()
+        toggle_editor()
+    }
+}
+
+window.onresize = function () {
+    var w = window.innerWidth, h = window.innerHeight
+    if (w < 1200 !== vert) {
+        vert = !vert
+        render()
+    }
+}
+onresize()
+render()
+
+function handle_pasted_images (el, cb) {
+    el.addEventListener("paste", function(e) {
+        // 1. Let's look for an image in the clipboard data
+        if (!e.clipboardData || !e.clipboardData.items) return
+        var items = e.clipboardData.items
+        var blob
+        for (var i=0; i<items.length; i++) {
+            if (items[i].type.indexOf("image") === -1) continue
+            blob = items[i].getAsFile()
+        }
+        if (!blob) return
+
+        if (blob.size > 1000000) {
+            insert_at_cursor(t, '<mark>Pasted image is bigger than 1MB.</mark>')
+            return
+        }
+
+        // 2. Now we have the pasted image as a blob.  Let's upload it!
+        var filename = Math.random().toString(36).slice(2) + '.png'
+        fetch('https://invisible.college/wikimg/' + filename, {
+            method: 'PUT',
+            body: blob
+        }).then( r => {
+            if (r.status === 200)
+                cb('https://invisible.college/wiki-images/' + filename)
+        })
+
+    }, false)
+}
+
+handle_pasted_images(window, x => {
+    insert_at_cursor(t, '<img src="'+x+'">')
+})
+
+function insert_at_cursor (textarea, string) {
+    // IE support
+    if (document.selection) {
+        textarea.focus()
+        sel = document.selection.createRange()
+        sel.text = string
+    }
+    // Mozilla and others
+    else if (textarea.selectionStart || textarea.selectionStart == '0') {
+        var startPos = textarea.selectionStart
+        var endPos = textarea.selectionEnd
+        textarea.value = textarea.value.substring(0, startPos)
+            + string
+            + textarea.value.substring(endPos, textarea.value.length)
+    } else
+        textarea.value += string;
+
+    // Now tell antimatter
+    a?.my_on_change()
+}
+
+var last_version
+var showing_diff = false
+addEventListener('keypress', function (e) {
+    if (e.ctrlKey && e.key === 's') {
+        last_version = t.value
+        event.preventDefault()
+        update_markdown()
+    }
+})
+
+color = (s, c) =>
+    s.split('\n\n').map(x => '<span style="background-color: '+ c +'">'+ x +'</span>').join('\n\n')
+
+green = (s) => color (s, '#cfc')
+red   = (s) => color (s, '#fcc')
+function html_diffed (Old, New) {
+    var diff = diff_main(Old, New)
+    var html = diff.map(
+        (x) => x[0] == 1 ? green(x[1])
+            : x[0] == -1 ? red(x[1])
+            : x[1]
+    ).join('')
+    //console.log(JSON.stringify(marked(html, {sanitize:false})))
+    return html
+}
+
+
+var ting = null
+function scroll () {
+    // We only scroll to the ting once -- if it's fresh
+    if (ting || location.hash.length === 0) return
+
+    ting = document.getElementById(location.hash.substr(1))
+    ting && ting.scrollIntoView()
+}
+for (i=0; i<50; i++)
+    setTimeout(scroll, i / 5.0 * 1000)
+
+function make_html(html) {
+    let d = document.createElement('div')
+    d.innerHTML = html
+    return d.firstChild    
+}
+    
+</script>
