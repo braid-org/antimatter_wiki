@@ -241,6 +241,7 @@ async function create_antimatter_client(url, cb, on_receive) {
 }
 
 ;(async () => {
+    var last_update_version = null
     a = await create_antimatter_client(`${wiki_host}/${encodeURIComponent(channel)}`, patches => {
 
         console.log('PATCHES ' + JSON.stringify(patches, null, '    '))
@@ -273,8 +274,7 @@ async function create_antimatter_client(url, cb, on_receive) {
 
 
     }, msg => {
-        let cv = Object.keys(a.current_version)
-        if (msg.type == 'ack' && cv.length == 1 && msg.version == cv[0])
+        if (msg.type == 'ack' && msg.versions[last_update_version])
             t.style['caret-color'] = 'black'
     })
 
@@ -285,7 +285,7 @@ async function create_antimatter_client(url, cb, on_receive) {
 
     a.my_on_change = () => {
         let slices = get_diff_patch(a.read(), t.value)
-        a.update(...slices.map(s => ({range: `[${s[0]}:${s[0] + s[1]}]`, content: s[2]})))
+        last_update_version = a.update(...slices.map(s => ({range: `[${s[0]}:${s[0] + s[1]}]`, content: s[2]})))
 
         t.style['caret-color'] = 'rgb(255,0,0)'
 
