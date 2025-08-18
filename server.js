@@ -173,6 +173,13 @@ wss.on('connection', (ws, req) => {
 
         if (x.conn) conns[conn = x.conn] = ws
 
+        // check for clients before about 0.1.6,
+        // which use {cmd: 'get'},
+        // instead of {type: 'subscribe'},
+        // and put them into an error state so they restart..
+        if (x.cmd === 'get')
+            return ws.send(JSON.stringify({cmd: 'forget', conn: '__not_real__'}))
+
         var a = await a_p
         a.write_to_log({receive: x})
         try {
