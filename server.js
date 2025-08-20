@@ -9,7 +9,7 @@ var { create_antimatter_crdt } = require('@braid.org/antimatter')
 
 var port = process.argv[2] || 1001
 var ws_url = process.argv[3] || `ws://localhost:${port}`
-var fissure_lifetime = 1*(process.argv[4] || 1000 * 60 * 60)
+var fissure_lifetime = 1*(process.argv[4] || 1000 * 60 * 60 * 24 * 14) // 14 days
 
 console.log(`port = ${port}`)
 console.log(`ws_url = ${ws_url}`)
@@ -110,12 +110,15 @@ async function ensure_antimatter(key) {
 }
 
 function respond_with_client (req, res) {
-    var client_html = fs.readFileSync(`${__dirname}/client.html`)
-    client_html = '' + client_html
-    client_html = client_html.replace(/__ANTIMATTER_VERSION__/,
-        require(`${__dirname}/package.json`).dependencies['@braid.org/antimatter'])
-    client_html = client_html.replace(/__VERSION__/, require(`${__dirname}/package.json`).version)
-    client_html = client_html.replace(/__WIKI_HOST__/, ws_url)
+    var package_json = require(`${__dirname}/package.json`)
+    var replaces = {
+        __ANTIMATTER_VERSION__: package_json.dependencies['@braid.org/antimatter'],
+        __VERSION__: package_json.version,
+        __WIKI_HOST__: ws_url,
+        __FISSURE_LIFETIME__: fissure_lifetime
+    }
+    var client_html = fs.readFileSync(`${__dirname}/client.html`, 'utf8').
+        replace(/__.*?__/g, x => replaces[x])
     var etag = require('crypto').createHash('md5').update(client_html).digest('hex')
     if (req.headers['if-none-match'] === etag) {
         res.writeHead(304)
