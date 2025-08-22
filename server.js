@@ -8,11 +8,9 @@ var fs_p = require('fs/promises')
 var { create_antimatter_crdt } = require('@braid.org/antimatter')
 
 var port = process.argv[2] || 1001
-var ws_url = process.argv[3] || `ws://localhost:${port}`
 var fissure_lifetime = 1*(process.argv[4] || 1000 * 60 * 60 * 24 * 14) // 14 days
 
 console.log(`port = ${port}`)
-console.log(`ws_url = ${ws_url}`)
 console.log(`fissure_lifetime = ${fissure_lifetime / (1000 * 60 * 60)} hours`)
 
 if (!fs.existsSync('./antimatter_wiki_db')) fs.mkdirSync('./antimatter_wiki_db')
@@ -114,7 +112,6 @@ function respond_with_client (req, res) {
     var replaces = {
         __ANTIMATTER_VERSION__: package_json.dependencies['@braid.org/antimatter'],
         __VERSION__: package_json.version,
-        __WIKI_HOST__: ws_url,
         __FISSURE_LIFETIME__: fissure_lifetime
     }
     var client_html = fs.readFileSync(`${__dirname}/client.html`, 'utf8').

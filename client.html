@@ -13,7 +13,7 @@
 
 console.log("__VERSION__")
 
-var wiki_host = "__WIKI_HOST__"
+var wiki_host = location.origin.replace(/^http/, 'ws')
 
 document.title = window.location.pathname.substr(1)
 document.body.style.border = '3px solid transparent'
