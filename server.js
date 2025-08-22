@@ -8,12 +8,12 @@ var fs_p = require('fs/promises')
 var { create_antimatter_crdt } = require('@braid.org/antimatter')
 
 var port = process.argv[2] || 1001
-var fissure_lifetime = 1*(process.argv[4] || 1000 * 60 * 60 * 24 * 14) // 14 days
-
 console.log(`port = ${port}`)
-console.log(`fissure_lifetime = ${fissure_lifetime / (1000 * 60 * 60)} hours`)
 
-if (!fs.existsSync('./antimatter_wiki_db')) fs.mkdirSync('./antimatter_wiki_db')
+var fissure_lifetime = 1000 * 60 * 60 * 24 * 14 // 14 days
+
+var antimatter_wiki_db = './antimatter_wiki_db'
+if (!fs.existsSync(antimatter_wiki_db)) fs.mkdirSync(antimatter_wiki_db)
 
 let conns = {}
 
@@ -21,7 +21,7 @@ let antimatters = {}
 async function ensure_antimatter(key) {
     console.log('finding db at ', JSON.stringify(key))
     if (!antimatters[key]) antimatters[key] = new Promise(async done => {
-        let dir = `./antimatter_wiki_db/${encodeURIComponent(key)}`
+        let dir = `${antimatter_wiki_db}/${encodeURIComponent(key)}`
         if (!fs.existsSync(dir))
             fs.mkdirSync(dir)
 
