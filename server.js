@@ -8,7 +8,9 @@ var fs_p = require('fs/promises')
 var { create_antimatter_crdt } = require('@braid.org/antimatter')
 
 var port = process.argv[2] || 1001
-console.log(`port = ${port}`)
+var certPath = process.argv[3]
+var keyPath = process.argv[4]
+console.log(`port = ${port}, over HTTP${certPath && keyPath ? 'S' : ''}`)
 
 var fissure_lifetime = 1000 * 60 * 60 * 24 * 14 // 14 days
 
@@ -130,13 +132,19 @@ function respond_with_client (req, res) {
     }
 }
 
-var server = require('http').createServer(async function (req, res) {
+async function serve(req, res) {
     console.log('GET: ', {method: req.method, url: req.url})
     res.setHeader('Access-Control-Allow-Origin', '*')
     res.setHeader('Access-Control-Allow-Headers', '*')
     res.setHeader('Access-Control-Allow-Methods', '*')
     respond_with_client(req, res)
-})
+}
+
+var server = certPath && keyPath ?
+    require('https').createServer({
+        cert: fs.readFileSync(certPath),
+        key: fs.readFileSync(keyPath)
+    }, serve) : require('http').createServer(serve)
 
 var wss = new (require('ws').Server)({server})
 wss.on('connection', (ws, req) => {
