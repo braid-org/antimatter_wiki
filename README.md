@@ -10,17 +10,23 @@ npm install -g antimatter_wiki
 
 ## Quick Start
 
-1. Run the wiki server:
+1. Create a data directory for the wiki:
+```bash
+mkdir my_wiki
+cd my_wiki
+```
+
+2. Run the wiki server:
 ```bash
 antimatter_wiki
 ```
 
-2. Open your browser and navigate to:
+3. Open your browser and navigate to:
 ```
 http://localhost:1001/any-page-name
 ```
 
-3. Click the "edit" button in the lower-right, and edit the markdown in the textarea!
+Now click the "edit" button in the lower-right, and edit the page to create it!
 
 ## Configuration
 
