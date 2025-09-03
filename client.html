@@ -273,7 +273,7 @@ async function create_antimatter_client(url, cb, on_receive) {
 
 
     }, msg => {
-        if (msg.type == 'ack' && msg.versions[last_update_version])
+        if (msg.versions && msg.versions[last_update_version])
             t.style['caret-color'] = 'black'
     })
 

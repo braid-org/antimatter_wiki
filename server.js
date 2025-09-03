@@ -192,6 +192,12 @@ wss.on('connection', (ws, req) => {
         a.write_to_log({receive: x})
         try {
             a.receive(x)
+
+            // send back an immediate acknowledgment,
+            // so the wiki UI can turn the cursor back to black
+            if (x.type === 'update')
+                ws.send(JSON.stringify({type: 'server_ack',
+                    versions: {[x.version]: true}}))
         } catch (e) {
             ws.send(JSON.stringify({type: 'error', message: e.message}))
         }
